@@ -39,7 +39,7 @@ import os, cPickle
 #
 class miRNA2motifHMM:
     # Initialize and start the run
-    def __init__(self,pssms,seqs3pUTR,seedModel=[6,7,8], minor=True, p5=True, p3=True, textOut=True):
+    def __init__(self,pssms,seqs3pUTR,seedModel=[6,7,8], minor=True, p5=True, p3=True, textOut=True, wobble=True, wobbleCut=0.25):
         self.pssms = pssms
         self.miRNAs = self.setMiRNAs(0,8,minor,p5,p3)
         # Trim sequences down
@@ -102,7 +102,8 @@ class miRNA2motifHMM:
         miRNAScores = {}
         cur = 1
         # Building HMM Model
-        print 'Building HMM model...'
+        #print 'Building HMM model...'
+        print 'Starting miRNA detection for',len(pssms),'3\' UTR motifs:'
         for pssm in pssms:
             miRNAScores[pssm.getName()] = []
             # Then setup the HMM
@@ -116,9 +117,11 @@ class miRNA2motifHMM:
             sp = {'NM1': float(1)/float(maxPSSMi+1), 'NM2': 0}
             # Add the PSSM states
             for i in range(maxPSSMi):
-                states += ['PSSM'+str(i),'WOBBLE'+str(i)]
+                states += ['PSSM'+str(i)]
                 sp['PSSM'+str(i)] = float(1)/float(maxPSSMi+1)
-                sp['WOBBLE'+str(i)] = 0
+                if wobble==True:
+                    states += ['WOBBLE'+str(i)]
+                    sp['WOBBLE'+str(i)] = 0
             ## Transition probabilities
             tp = {}
             # NM1
@@ -127,35 +130,42 @@ class miRNA2motifHMM:
             leftOver1 = float(1-nm1_2_nm1)/float(maxPSSMi)
             for i in range(maxPSSMi):
                 tp['NM1']['PSSM'+str(i)] = leftOver1
-                tp['NM1']['WOBBLE'+str(i)] = 0 # Don't start a seed with a wobble
+                if wobble==True:
+                    tp['NM1']['WOBBLE'+str(i)] = 0 # Don't start a seed with a wobble
             # NM2
             tp['NM2'] = { 'NM1': 0, 'NM2': 1 }
             for i in range(maxPSSMi):
                 tp['NM2']['PSSM'+str(i)] = 0
-                tp['NM2']['WOBBLE'+str(i)] = 0
+                if wobble==True:
+                    tp['NM2']['WOBBLE'+str(i)] = 0
             # PSSMis
             for i in range(maxPSSMi):
-                tp['PSSM'+str(i)] = { 'NM1': 0, 'NM2': 0.01 }
-                tp['WOBBLE'+str(i)] = { 'NM1': 0, 'NM2': 0.01 }
-                if i==(1-maxPSSMi):
+                tp['PSSM'+str(i)] = { 'NM1': 0, 'NM2': float(1)/float(maxPSSMi+1) }
+                if wobble==True:
+                    tp['WOBBLE'+str(i)] = { 'NM1': 0, 'NM2': float(1)/float(maxPSSMi+1) }
+                if i==(maxPSSMi-1):
                     tp['PSSM'+str(i)]['NM2'] = 1
-                    tp['WOBBLE'+str(i)]['NM2'] = 1
+                    if wobble==True:
+                        tp['WOBBLE'+str(i)]['NM2'] = 1
                 for j in range(maxPSSMi):
                     if j == i+1:
-                        tp['PSSM'+str(i)]['PSSM'+str(j)] = 0.80
-                        # Allow wobbly matches if T is >= 0.25
-                        if float(pssm.getMatrix()[i+1][3])>=float(0.25):
-                            tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0.19
-                        # Otherwise don't allow wobbly matches
-                        else:
-                            tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
-                        tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 1
-                        tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
+                        if wobble==True:
+                            # Allow wobbly matches if T is >= wobbleCut
+                            if float(pssm.getMatrix()[i+1][2])>=float(wobbleCut) or float(pssm.getMatrix()[i+1][3])>=float(wobbleCut):
+                                tp['PSSM'+str(i)]['PSSM'+str(j)] = (float(1)-(float(1)/float(maxPSSMi+1)))*float(0.80)
+                                tp['PSSM'+str(i)]['WOBBLE'+str(j)] = (float(1)-(float(1)/float(maxPSSMi+1)))*float(0.20)
+                            # Otherwise don't allow wobbly matches
+                            else:
+                                tp['PSSM'+str(i)]['PSSM'+str(j)] = float(1)-(float(1)/float(maxPSSMi+1))
+                                tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
+                            tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 1
+                            tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
                     else:
                         tp['PSSM'+str(i)]['PSSM'+str(j)] = 0
-                        tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
-                        tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 0
-                        tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
+                        if wobble==True:
+                            tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
+                            tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 0
+                            tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
             ## Emission probabilities
             ep = {}
             # NM1
@@ -167,42 +177,52 @@ class miRNA2motifHMM:
             # PSSMis
             for i in range(maxPSSMi):
                 ep['PSSM'+str(i)] = { 'A': pssm.getMatrix()[i][0], 'C': pssm.getMatrix()[i][1], 'G': pssm.getMatrix()[i][2], 'T': pssm.getMatrix()[i][3] }
-                ep['WOBBLE'+str(i)] = { 'A': 0, 'C': 1, 'G': 0, 'T': 0 }
-            print 'Done.\n'
+                # If motif has both G and U probability greater than wobblecut or random (0.25)
+                if float(pssm.getMatrix()[i][2])>=float(wobbleCut) and float(pssm.getMatrix()[i][3])>=float(wobbleCut):
+                    ep['WOBBLE'+str(i)] = { 'A': 0.5, 'C': 0.5, 'G': 0, 'T': 0 }
+                # If motif has G greater than wobblecut or random (0.25)
+                elif float(pssm.getMatrix()[i][2])>=float(wobbleCut):
+                    ep['WOBBLE'+str(i)] = { 'A': 1, 'C': 0, 'G': 0, 'T': 0 }
+                # If motif has U greater than wobblecut or random (0.25)
+                elif float(pssm.getMatrix()[i][3])>=float(wobbleCut):                
+                    ep['WOBBLE'+str(i)] = { 'A': 0, 'C': 1, 'G': 0, 'T': 0 }
+                # Otherwise be random (0.25 x 4)
+                else:
+                    ep['WOBBLE'+str(i)] = { 'A': 0.25, 'C': 0.25, 'G': 0.25, 'T': 0.25 }
+            #print 'Done.\n'
             # Calculate the distribution of p-values for the PSSM
             if 6 in seedModel:
-                print 'Computing background 6mer...'
+                #print 'Computing background 6mer ('+str(len(self.permKMers_6mer))+')...'
                 totPs_6mer = []
                 vitPs_6mer = []
                 for kMer in self.permKMers_6mer:
                     permVit = self.forwardViterbi(list(kMer), states, sp, tp, ep)
-                    totPs_6mer.append(deepcopy(permVit[0]))
-                    vitPs_6mer.append(deepcopy(permVit[2]))
+                    totPs_6mer.append(permVit[0])
+                    vitPs_6mer.append(permVit[2])
                 self.totPs_6mer = totPs_6mer
                 self.vitPs_6mer = vitPs_6mer
             if 7 in seedModel:
-                print 'Computing background 7mer...'
+                #print 'Computing background 7mer ('+str(len(self.permKMers_7mer))+')...'
                 totPs_7mer = []
                 vitPs_7mer = []
                 for kMer in self.permKMers_7mer:
                     permVit = self.forwardViterbi(list(kMer), states, sp, tp, ep)
-                    totPs_7mer.append(deepcopy(permVit[0]))
-                    vitPs_7mer.append(deepcopy(permVit[2]))
+                    totPs_7mer.append(permVit[0])
+                    vitPs_7mer.append(permVit[2])
                 self.totPs_7mer = totPs_7mer
                 self.vitPs_7mer = vitPs_7mer
             if 8 in seedModel:
-                print 'Computing background 8mer...'
+                #print 'Computing background 8mer ('+str(len(self.permKMers_8mer))+')...'
                 totPs_8mer = []
                 vitPs_8mer = []
                 for kMer in self.permKMers_8mer:
                     permVit = self.forwardViterbi(list(kMer), states, sp, tp, ep)
-                    totPs_8mer.append(deepcopy(permVit[0]))
-                    vitPs_8mer.append(deepcopy(permVit[2]))
+                    totPs_8mer.append(permVit[0])
+                    vitPs_8mer.append(permVit[2])
                 self.totPs_8mer = totPs_8mer
                 self.vitPs_8mer = vitPs_8mer
-            print 'Done.\n'
+            #print 'Done.\n'
             ## Do viterbi for each miRNA and store data
-            print 'Starting miRNA detection for',len(pssms),'3\' UTR motifs:'
             if textOut==True:
                 if not os.path.exists('miRNA'):
                     os.mkdir('miRNA') 
@@ -480,6 +500,17 @@ class miRNA2motifHMM:
                 i += 1
             return retMe
 
+    # Get the scores for a PSSM.
+    # Returns all miRNAs which conatin the miRNA name.
+    def getmiRNAHit(self,pssmName,miRNAname):
+        scoreList = self.getScoreList(pssmName)
+        retMe = []
+        for i in range(len(scoreList)):
+            if not scoreList[i]['miRNA.name'].find(miRNAname)==-1:
+                scoreList[i]['rank'] = i
+                retMe.append(scoreList[i])
+        return retMe
+    
     # Strucuture of elements:
     # [pssm, getConsensus(pssms[pssm]), miRNA, miRNAs[miRNA], forVit]
     # <tr><td>miRNA Name</td><td>Alignment Start<sup>*</sup></td><td>Alignment Stop<sup>*</sup></td><td>Alignment Length</td><td>Motif (Length)</td><td>Alignment Type</td><td>Alignment</td><td>P(Alignment)</td></tr>
