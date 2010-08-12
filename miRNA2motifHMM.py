@@ -40,6 +40,7 @@ import os, cPickle
 class miRNA2motifHMM:
     # Initialize and start the run
     def __init__(self,pssms,seqs3pUTR,seedModel=[6,7,8], minor=True, p5=True, p3=True, textOut=True, wobble=True, wobbleCut=0.25):
+        print '\nmiRvestigator analysis started...'
         self.pssms = pssms
         self.miRNAs = self.setMiRNAs(0,8,minor,p5,p3)
         # Trim sequences down
@@ -50,41 +51,44 @@ class miRNA2motifHMM:
         self.miRNAs_7mer_a1 = self.trimSeqs(deepcopy(self.miRNAs),0,7)
         self.miRNAs_8mer = self.trimSeqs(deepcopy(self.miRNAs),0,8)
         p3utrSeqs = 'X'.join(seqs3pUTR)
+        dirName = 'miRNA'
+        if not os.path.exists(dirName):
+            os.mkdir(dirName) 
         if 6 in seedModel:
             print 'Screening out 6mers not present in 3\' UTRs...'
-            if not os.path.exists('permKMers_6mers.pkl'):
+            if not os.path.exists('miRNA/permKMers_6mers.pkl'):
                 permKMers_6mer = self.allKmers(6)
                 tmpKMers = []
                 for i in permKMers_6mer:
                     if not p3utrSeqs.find(i)==-1:
                         tmpKMers.append(i)
                 self.permKMers_6mer = tmpKMers
-                pklFile = open('permKMers_6mers.pkl','wb')
+                pklFile = open('miRNA/permKMers_6mers.pkl','wb')
                 cPickle.dump(self.permKMers_6mer,pklFile)
             else:
-                pklFile = open('permKMers_6mers.pkl','rb')
+                pklFile = open('miRNA/permKMers_6mers.pkl','rb')
                 self.permKMers_6mer = cPickle.load(pklFile)
             pklFile.close()
 
         if 7 in seedModel:
             print 'Screening out 7mers not present in 3\' UTRs...'
-            if not os.path.exists('permKMers_7mers.pkl'):
+            if not os.path.exists('miRNA/permKMers_7mers.pkl'):
                 permKMers_7mer = self.allKmers(7)
                 tmpKMers = []
                 for i in permKMers_7mer:
                     if not p3utrSeqs.find(i)==-1:
                         tmpKMers.append(i)
                 self.permKMers_7mer = tmpKMers
-                pklFile = open('permKMers_7mers.pkl','wb')
+                pklFile = open('miRNA/permKMers_7mers.pkl','wb')
                 cPickle.dump(self.permKMers_7mer,pklFile)
             else:
-                pklFile = open('permKMers_7mers.pkl','rb')
+                pklFile = open('miRNA/permKMers_7mers.pkl','rb')
                 self.permKMers_7mer = cPickle.load(pklFile)
             pklFile.close()
 
         if 8 in seedModel:
             print 'Screening out 8mers not present in 3\' UTRs...'
-            if not os.path.exists('permKMers_8mers.pkl'):
+            if not os.path.exists('miRNA/permKMers_8mers.pkl'):
                 permKMers_8mer = self.allKmers(8)
             
                 tmpKMers = []
@@ -92,19 +96,18 @@ class miRNA2motifHMM:
                     if not p3utrSeqs.find(i)==-1:
                         tmpKMers.append(i)
                 self.permKMers_8mer = tmpKMers
-                pklFile = open('permKMers_8mers.pkl','wb')
+                pklFile = open('miRNA/permKMers_8mers.pkl','wb')
                 cPickle.dump(self.permKMers_8mer,pklFile)
             else:
-                pklFile = open('permKMers_8mers.pkl','rb')
+                pklFile = open('miRNA/permKMers_8mers.pkl','rb')
                 self.permKMers_8mer = cPickle.load(pklFile)
             pklFile.close()
         print 'Done.\n'
         miRNAScores = {}
         cur = 1
         # Building HMM Model
-        #print 'Building HMM model...'
-        print 'Starting miRNA detection for',len(pssms),'3\' UTR motifs:'
         for pssm in pssms:
+            print 'Building HMM model for '+str(pssm.getConsensusMotif())+'...'
             miRNAScores[pssm.getName()] = []
             # Then setup the HMM
             ## States ##
@@ -140,9 +143,9 @@ class miRNA2motifHMM:
                     tp['NM2']['WOBBLE'+str(i)] = 0
             # PSSMis
             for i in range(maxPSSMi):
-                tp['PSSM'+str(i)] = { 'NM1': 0, 'NM2': float(1)/float(maxPSSMi+1) }
+                tp['PSSM'+str(i)] = { 'NM1': 0, 'NM2': 0.01 }
                 if wobble==True:
-                    tp['WOBBLE'+str(i)] = { 'NM1': 0, 'NM2': float(1)/float(maxPSSMi+1) }
+                    tp['WOBBLE'+str(i)] = { 'NM1': 0, 'NM2': 0.01 }
                 if i==(maxPSSMi-1):
                     tp['PSSM'+str(i)]['NM2'] = 1
                     if wobble==True:
@@ -152,11 +155,11 @@ class miRNA2motifHMM:
                         if wobble==True:
                             # Allow wobbly matches if T is >= wobbleCut
                             if float(pssm.getMatrix()[i+1][2])>=float(wobbleCut) or float(pssm.getMatrix()[i+1][3])>=float(wobbleCut):
-                                tp['PSSM'+str(i)]['PSSM'+str(j)] = (float(1)-(float(1)/float(maxPSSMi+1)))*float(0.80)
-                                tp['PSSM'+str(i)]['WOBBLE'+str(j)] = (float(1)-(float(1)/float(maxPSSMi+1)))*float(0.20)
+                                tp['PSSM'+str(i)]['PSSM'+str(j)] = 0.80
+                                tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0.19
                             # Otherwise don't allow wobbly matches
                             else:
-                                tp['PSSM'+str(i)]['PSSM'+str(j)] = float(1)-(float(1)/float(maxPSSMi+1))
+                                tp['PSSM'+str(i)]['PSSM'+str(j)] = 0.99
                                 tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
                             tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 1
                             tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
@@ -189,10 +192,10 @@ class miRNA2motifHMM:
                 # Otherwise be random (0.25 x 4)
                 else:
                     ep['WOBBLE'+str(i)] = { 'A': 0.25, 'C': 0.25, 'G': 0.25, 'T': 0.25 }
-            #print 'Done.\n'
+            print 'Done.\n'
             # Calculate the distribution of p-values for the PSSM
             if 6 in seedModel:
-                #print 'Computing background 6mer ('+str(len(self.permKMers_6mer))+')...'
+                print 'Computing background distribution for 6mer ('+str(len(self.permKMers_6mer))+')...'
                 totPs_6mer = []
                 vitPs_6mer = []
                 for kMer in self.permKMers_6mer:
@@ -201,8 +204,8 @@ class miRNA2motifHMM:
                     vitPs_6mer.append(permVit[2])
                 self.totPs_6mer = totPs_6mer
                 self.vitPs_6mer = vitPs_6mer
-            if 7 in seedModel:
-                #print 'Computing background 7mer ('+str(len(self.permKMers_7mer))+')...'
+            if 7 in seedModel and len(pssm.getMatrix())>=7:
+                print 'Computing background distribution for 7mer ('+str(len(self.permKMers_7mer))+')...'
                 totPs_7mer = []
                 vitPs_7mer = []
                 for kMer in self.permKMers_7mer:
@@ -211,8 +214,8 @@ class miRNA2motifHMM:
                     vitPs_7mer.append(permVit[2])
                 self.totPs_7mer = totPs_7mer
                 self.vitPs_7mer = vitPs_7mer
-            if 8 in seedModel:
-                #print 'Computing background 8mer ('+str(len(self.permKMers_8mer))+')...'
+            if 8 in seedModel and len(pssm.getMatrix())>=8:
+                print 'Computing background distribution for 8mer ('+str(len(self.permKMers_8mer))+')...'
                 totPs_8mer = []
                 vitPs_8mer = []
                 for kMer in self.permKMers_8mer:
@@ -221,22 +224,25 @@ class miRNA2motifHMM:
                     vitPs_8mer.append(permVit[2])
                 self.totPs_8mer = totPs_8mer
                 self.vitPs_8mer = vitPs_8mer
-            #print 'Done.\n'
+            print 'Done.\n'
             ## Do viterbi for each miRNA and store data
+            print 'Starting miRNA detection for '+str(pssm.getConsensusMotif())+':'
             if textOut==True:
-                if not os.path.exists('miRNA'):
-                    os.mkdir('miRNA') 
-                outFile = open('miRNA/'+str(pssm.getName())+'.csv','w')
-                outFile.write('miRNAname,miRNAseed,AlignStart,AlignStop,AlignLength,AlignmentModel,MotifAlign (5\'->3\'),Align,SeedAlign(3\'->5\'),P(Total),P-valueTotal,P(Viterbi),P-valueViterbi,Score') # Header
-                out2File = open('miRNA/'+str(pssm.getName())+'_all.csv','w')
+                writeMeOut = {}
+                dirName = 'miRNA'
+                if not os.path.exists(dirName):
+                    os.mkdir(dirName) 
+                outFile = open(dirName+'/'+str(pssm.getName())+'.csv','w')
+                outFile.write('miRNAname,miRNAseed,AlignStart,AlignStop,AlignLength,AlignmentModel,MotifAlign (5\'->3\'),Align,SeedAlign(3\'->5\'),P(Total),P-valueTotal,P(Viterbi),P-valueViterbi') # Header
+                out2File = open(dirName+'/'+str(pssm.getName())+'_all.csv','w')
                 headNum = 0
                 if 6 in seedModel:
                     headNum += 3
-                if 7 in seedModel:
+                if 7 in seedModel and len(pssm.getMatrix())>=7:
                     headNum += 2
-                if 8 in seedModel:
+                if 8 in seedModel and len(pssm.getMatrix())>=8:
                     headNum += 1
-                out2File.write(','.join(['miRNAname,miRNAseed,AlignStart,AlignStop,AlignLength,AlignmentModel,MotifAlign (5\'->3\'),Align,SeedAlign(3\'->5\'),P(Total),P-valueTotal,P(Viterbi),P-valueViterbi,Score']*headNum)) # header
+                out2File.write(','.join(['miRNAname,miRNAseed,AlignStart,AlignStop,AlignLength,AlignmentModel,MotifAlign (5\'->3\'),Align,SeedAlign(3\'->5\'),P(Total),P-valueTotal,P(Viterbi),P-valueViterbi']*headNum)) # header
             for miRNA in self.miRNAs_6mer_1:
                 # Now decide which complementary seed is the best fit for each miRNA (take the max vitP)
                 forVit = None
@@ -269,7 +275,7 @@ class miRNA2motifHMM:
                         compModel = '6mer_3'
                         seed = self.miRNAs_6mer_3[miRNA]
                         tmpPs = [totPs_6mer,vitPs_6mer]
-                if 7 in seedModel:
+                if 7 in seedModel and len(pssm.getMatrix())>=7:
                     # Compute probabilities
                     forVit_7mer_m8 = self.forwardViterbi(list(self.miRNAs_7mer_m8[miRNA]), states, sp, tp, ep)
                     forVit_7mer_a1 = self.forwardViterbi(list(self.miRNAs_7mer_a1[miRNA]), states, sp, tp, ep)
@@ -296,7 +302,7 @@ class miRNA2motifHMM:
                         compModel = '7mer-a1'
                         seed = self.miRNAs_7mer_a1[miRNA]
                         tmpPs = [totPs_7mer,vitPs_7mer]
-                if 8 in seedModel:
+                if 8 in seedModel and len(pssm.getMatrix())>=8:
                     # Compute probabilities
                     forVit_8mer = self.forwardViterbi(list(self.miRNAs_8mer[miRNA]), states, sp, tp, ep)
                     if textOut==True:
@@ -316,23 +322,24 @@ class miRNA2motifHMM:
                         seed = self.miRNAs_8mer[miRNA]
                         tmpPs = [totPs_8mer,vitPs_8mer]
                 # PSSM.name, PSSM.consesusMotif, miRNA.name, miRNA.seed, state.path, totP, totPValue, vitP, vitPValue
-                newScore = {'miRNA.name':miRNA, 'miRNA.seed':seed, 'statePath':forVit[1], 'totP':forVit[0], 'totPValue':self.getPValue(forVit[0],tmpPs[0]), 'vitP':forVit[2], 'vitPValue':self.getPValue(forVit[2],tmpPs[1]), 'model':compModel, 'score': self.getScore(forVit,tmpPs[1])}
+                newScore = {'miRNA.name':miRNA, 'miRNA.seed':seed, 'statePath':deepcopy(forVit[1]), 'totP':forVit[0], 'totPValue':self.getPValue(forVit[0],tmpPs[0]), 'vitP':forVit[2], 'vitPValue':self.getPValue(forVit[2],tmpPs[1]), 'model':compModel}
                 miRNAScores[pssm.getName()] = self.addSorted(miRNAScores[pssm.getName()],newScore)
                 if textOut==True:
                     out2File.write('\n'+writeMe)
-                    writeMe = ','.join(self.outData([pssm, pssm.getConsensusMotif(), miRNA, self.reverseComplement(seed), forVit], self.getPValue(forVit[0],tmpPs[0]), self.getPValue(forVit[2],tmpPs[1]), compModel, self.miRNAs_8mer[miRNA]))
-                    outFile.write('\n'+writeMe)
+                    writeMeOut[miRNA] = ','.join(self.outData([pssm, pssm.getConsensusMotif(), miRNA, self.reverseComplement(seed), forVit], self.getPValue(forVit[0],tmpPs[0]), self.getPValue(forVit[2],tmpPs[1]), compModel, self.miRNAs_8mer[miRNA]))
             
             if textOut==True:
+                outFile.write('\n'+'\n'.join([writeMeOut[i['miRNA.name']] for i in miRNAScores[pssm.getName()]]))
                 outFile.close()
                 out2File.close()
-            if cur%10==0:
-                stdout.write(str(cur))
-            else:
-                stdout.write('.')
-            stdout.flush()
+            #if cur%10==0:
+            #    stdout.write(str(cur))
+            #else:
+            #    stdout.write('.')
+            #stdout.flush()
+            print 'Done.\n'
             cur += 1
-        print '\nDone.\n'
+        print 'miRvestigator analysis completed.\n'
         self.miRNAScores = miRNAScores
 
     def getScore(self, forVit, vitPs):
@@ -351,18 +358,23 @@ class miRNA2motifHMM:
     
     # Get the miRNAs to compare against
     def setMiRNAs(self,seedStart,seedEnd, minor=True, p5=True, p3=True):
-        # Grab down the latest miRNA data from mirbase.org:
-        #  ftp://mirbase.org/pub/mirbase/CURRENT/mature.fa.gz
-        from ftplib import FTP
-        ftp1 = FTP('mirbase.org')
-        ftp1.login()
-        ftp1.cwd('/pub/mirbase/CURRENT/')
-        # Get the miRBase.org version number for reference.
-        self.miRNAver = (ftp1.pwd().split('/'))[-1]
-        outFile = open('mature.fa.gz','wb')
-        ftp1.retrbinary('RETR mature.fa.gz',outFile.write)
-        outFile.close()
-        ftp1.quit()
+        if not os.path.exists('mature.fa.gz'):
+            print '\nDownloading miRNA seeds from miRBase.org...'
+            # Grab down the latest miRNA data from mirbase.org:
+            #  ftp://mirbase.org/pub/mirbase/CURRENT/mature.fa.gz
+            from ftplib import FTP
+            ftp1 = FTP('mirbase.org')
+            ftp1.login()
+            ftp1.cwd('/pub/mirbase/CURRENT/')
+            # Get the miRBase.org version number for reference.
+            self.miRNAver = (ftp1.pwd().split('/'))[-1]
+            outFile = open('mature.fa.gz','wb')
+            ftp1.retrbinary('RETR mature.fa.gz',outFile.write)
+            outFile.close()
+            ftp1.quit()
+            print 'Done.\n'
+        else:
+            print '\nUsing already downloaded miRNA seeds.\n'
 
         # Read in miRNAs: miRNAs are labeled by the hsa-* names and grabbing 2-8bp
         ### Could merge these as they come in so that don't do redundant, and also so that the labels are together
@@ -463,7 +475,7 @@ class miRNA2motifHMM:
         inserted = 0
         if len(all)>0:
             for i in range(len(all)):
-                if new['score']<all[i]['score']:
+                if new['vitPValue']<all[i]['vitPValue']:
                     all.insert(i,new)
                     inserted = 1
                     break
@@ -490,12 +502,12 @@ class miRNA2motifHMM:
     # Returns either one or more miRNAs based on whether a clear winner or a tie.
     def getTopHit(self,pssmName):
         scoreList = self.getScoreList(pssmName)
-        if scoreList[0]['totPValue']<scoreList[1]['totPValue']:
+        if scoreList[0]['vitPValue']<scoreList[1]['vitPValue']:
             return [scoreList[0]]
         else:
             retMe = []
             i = 0
-            while scoreList[0]['totPValue']==scoreList[i]['totPValue']:
+            while scoreList[0]['vitPValue']==scoreList[i]['vitPValue']:
                 retMe.append(scoreList[i])
                 i += 1
             return retMe
@@ -584,7 +596,7 @@ class miRNA2motifHMM:
         #print outMe[4][1]
         output = []
         # miRNA name
-        output += [outMe[2],fullSeed]
+        output += [outMe[2],self.reverseComplement(fullSeed)]
         alignment = outMe[4][1] # Grab the alignment
         alignment.pop() # Get rid of the extra state which is added by the forwardViterbi function
         start = 1
@@ -643,7 +655,7 @@ class miRNA2motifHMM:
                 motifAlign += i
         output += [start,start+lenMatch-1,lenMatch,compModel,"'"+motifAlign,"'"+aligned,"'"+seedAlign]
         # P(Alignment)
-        output += [outMe[4][0],totP,outMe[4][2],vitP,(float(outMe[4][0])/float(outMe[4][2]))*float(vitP)]
+        output += [outMe[4][0],totP,outMe[4][2],vitP]
         return [str(i) for i in output]
 
 
