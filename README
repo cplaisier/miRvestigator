@@ -1,0 +1,29 @@
+Copyright -- Chris Plaisier (8/11/2010)
+This is a script to identify miRNAs from a Position Specific Scoring Matrix. In this case the Weeder de novo motif finding algorithm is used to identify the PSSM from the 3' Un-Trasnlated Regions (UTRs) of experimentally derived miRNA co-regualted genes (hsa-miR-17, PMID = 19734348). This PSSM is then passed to miRvestigator which downloads the mature miRNA seed seqeunces from miRbase.org and compares these mature seed sequences against the PSSM. This is accomplished by converting the PSSM into a Hidden Markov Model (HMM), very similar to a profile HMM, and then using the Viterbi algorithm to simultaneously align and calcualte a probabilty for the alighment of the miRNA seed to the HMM. A p-value is calculated by exhaustively comparing all potential miRNA seed sequneces that could bind to 3' UTRs, and using simulations the p-value for the Viterbi probability is the optimal metric for gauging miRNA seed to PSSM similarity.
+
+The miRvestigator python object takes the following input variables:
+
+pssms = an array of pssm objects, which can be created by instantiating a pssm object and filling it with the appropriate information. All that is required to be filled out for the pssm object in order to run miRvestigator is the name and matrix (the matrix is the pssm which is a two dimensional array or 1st order length = length of PSSM, and 2nd order length = 4 (A, C, G, T)).
+seqs3pUTR = an array of 3' UTR seqeunces as strings, which will be appened and screened for the presence of each potential miRNA. This is used to exclude potential miRNA seqeunces that are not present in the 3' UTR seqeucnes.
+seedModel = default([6,7,8]) = an array that describes the set of seed models to be used (6mer, 7mer and/or 8mer).
+minor = default(True) = if True will include minor strand miRNA seeds, False excludes them.
+p5 = default(True) = if True will include p5 strand miRNA seeds, False excludes them.
+p3 = default(True) = if True will include p3 strand miRNA seeds, False excludes them.
+textOut = default(True) = if True will output into miRNA sub-folder as csv, False does not output csv files.
+wobble = default(True) = if True will include potential wobble base-pairings in the model.
+wobbleCut = default(0.25) = The threshold for the minimum seed nucleotide frequency that will allow a potential wobble base-pairing.
+
+The miRvestigator python object has the following methods:
+
+getScoreList = parameters(pssmName) = Given the pssmName this will return the miRvestigator output as an array with each line an miRNA with miRvestigator scoring information as a dictionary.
+getTopHit = parameters(pssmName) = Given the pssmName this will return the top hit or hits if there is a tie of miRvestigator output as an array with each line an miRNA with miRvestigator scoring information as a dictionary.
+getmiRNAHit = parameters(pssmName,miRNAname) = Given a pssmName and a miRNAname this will return the corresponding miRNA score. Important to notice the miRvestigator appends miRNA names from miRbase that do not have unique IDs. The best way to figure out what the name will be is to run it once and see what the miRNA you want is called. The names are appeneded by underscores '_'.
+
+Here is an example instantiation, running and simple output dump of the top hit from the validation_hsa_miR_17_E.py example application:
+
+from miRvestigator import miRvestigator
+mV = miRvestigator(weederPSSMs1,seqs.values(),seedModel=[6,7,8],minor=True,p5=True,p3=True,wobble=True,wobbleCut=0.25)
+print mV.getTopHit(weederPSSMs1[0].getName())
+
+The results are stored in the output returned from the miRvestigator python object. Or as long as the textOut option is True, which is default, then the output will also be written out to the sub-directory called 'miRNA'. The output put into the 'miRNA' sub-folder contains two files per PSSM:  1) <PSSM_Name.csv> = the miRvestigator list of unique miRNA seeds ranked by miRvestigator Viterbi p-value, 2) <PSSM_Name_All.csv> = the miRvestigator list of unique miRNA seeds ranked by miRvestigator Viterbi p-value with all models listed.
+
