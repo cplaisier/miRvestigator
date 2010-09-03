@@ -163,6 +163,8 @@ class miRvestigator:
                                 tp['PSSM'+str(i)]['WOBBLE'+str(j)] = 0
                             tp['WOBBLE'+str(i)]['PSSM'+str(j)] = 1
                             tp['WOBBLE'+str(i)]['WOBBLE'+str(j)] = 0
+                        else:
+                            tp['PSSM'+str(i)]['PSSM'+str(j)] = 0.99
                     else:
                         tp['PSSM'+str(i)]['PSSM'+str(j)] = 0
                         if wobble==True:
@@ -181,17 +183,18 @@ class miRvestigator:
             for i in range(maxPSSMi):
                 ep['PSSM'+str(i)] = { 'A': pssm.getMatrix()[i][0], 'C': pssm.getMatrix()[i][1], 'G': pssm.getMatrix()[i][2], 'T': pssm.getMatrix()[i][3] }
                 # If motif has both G and U probability greater than wobblecut or random (0.25)
-                if float(pssm.getMatrix()[i][2])>=float(wobbleCut) and float(pssm.getMatrix()[i][3])>=float(wobbleCut):
-                    ep['WOBBLE'+str(i)] = { 'A': 0.5, 'C': 0.5, 'G': 0, 'T': 0 }
-                # If motif has G greater than wobblecut or random (0.25)
-                elif float(pssm.getMatrix()[i][2])>=float(wobbleCut):
-                    ep['WOBBLE'+str(i)] = { 'A': 1, 'C': 0, 'G': 0, 'T': 0 }
-                # If motif has U greater than wobblecut or random (0.25)
-                elif float(pssm.getMatrix()[i][3])>=float(wobbleCut):                
-                    ep['WOBBLE'+str(i)] = { 'A': 0, 'C': 1, 'G': 0, 'T': 0 }
-                # Otherwise be random (0.25 x 4)
-                else:
-                    ep['WOBBLE'+str(i)] = { 'A': 0.25, 'C': 0.25, 'G': 0.25, 'T': 0.25 }
+                if wobble==True:
+                    if float(pssm.getMatrix()[i][2])>=float(wobbleCut) and float(pssm.getMatrix()[i][3])>=float(wobbleCut):
+                        ep['WOBBLE'+str(i)] = { 'A': 0.5, 'C': 0.5, 'G': 0, 'T': 0 }
+                    # If motif has G greater than wobblecut or random (0.25)
+                    elif float(pssm.getMatrix()[i][2])>=float(wobbleCut):
+                        ep['WOBBLE'+str(i)] = { 'A': 1, 'C': 0, 'G': 0, 'T': 0 }
+                    # If motif has U greater than wobblecut or random (0.25)
+                    elif float(pssm.getMatrix()[i][3])>=float(wobbleCut):                
+                        ep['WOBBLE'+str(i)] = { 'A': 0, 'C': 1, 'G': 0, 'T': 0 }
+                    # Otherwise be random (0.25 x 4)
+                    else:
+                        ep['WOBBLE'+str(i)] = { 'A': 0.25, 'C': 0.25, 'G': 0.25, 'T': 0.25 }
             print 'Done.\n'
             # Calculate the distribution of p-values for the PSSM
             if 6 in seedModel:
