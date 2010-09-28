@@ -23,13 +23,14 @@ from subprocess import *
 from copy import deepcopy
 from random import sample
 import cPickle
+from pssm import pssm                     # Custom library
+
 
 # Libraries for plotting
 import numpy, corebio                     # http://numpy.scipy.org and http://code.google.com/p/corebio/
 from numpy import array, float64, log10   # http://numpy.scipy.org
 from weblogolib import *                  # http://code.google.com/p/weblogo/
 
-# Custom library
 
 # Plot a PSSM using weblogo
 def plotPssm(pssm, fileName):
